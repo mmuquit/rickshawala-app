@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RICKSHAWALA</title>
+
+<style>
+:root {
+  --bg: #f4f7fb;
+  --card: #ffffff;
+  --primary: #0f766e;
+  --primary-dark: #115e59;
+  --text: #111827;
+  --muted: #6b7280;
+  --danger: #dc2626;
+  --border: #d1d5db;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  max-width: 520px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.header {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--primary-dark);
+  margin-bottom: 16px;
+}
+
+.card {
+  background: var(--card);
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+}
+
+.top-buttons,
+.toggle-row,
+.action-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+button {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--primary);
+  color: white;
+}
+
+button:hover {
+  background: var(--primary-dark);
+}
+
+button.secondary {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+button.secondary:hover {
+  background: #d1d5db;
+}
+
+button.active {
+  background: #111827;
+  color: white;
+}
+
+button.full {
+  width: 100%;
+}
+
+h2, h3 {
+  margin: 8px 0 12px;
+}
+
+.big-number {
+  font-size: 42px;
+  font-weight: 900;
+  margin: 10px 0;
+  color: var(--primary-dark);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+input {
+  width: 70%;
+  padding: 14px;
+  font-size: 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.currency {
+  font-size: 22px;
+  font-weight: 800;
+  margin-left: 8px;
+}
+
+canvas {
+  width: 100%;
+  height: 280px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: white;
+}
+
+.hidden {
+  display: none;
+}
+
+.small-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+@media (max-width: 420px) {
+  .big-number {
+    font-size: 36px;
+  }
+
+  button {
+    flex: 1;
+  }
+
+  input {
+    width: 68%;
+  }
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+  <div class="header">RICKSHAWALA</div>
+
+  <!-- HOME SCREEN -->
+  <section id="homeScreen">
+    <div class="card">
+      <div class="top-buttons">
+        <button onclick="showAddScreen()">Add new ride</button>
+        <button onclick="showHistoryScreen()">See history</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Today's Income:</h2>
+      <div id="todayTotal" class="big-number">0 Tk</div>
+      <canvas id="todayChart"></canvas>
+      <div class="small-note">Bars = hourly income, Line = accumulated income</div>
+    </div>
+  </section>
+
+  <!-- ADD SCREEN -->
+  <section id="addScreen" class="hidden">
+    <div class="card">
+      <h2>Add New Ride</h2>
+      <div id="currentDateTime" class="muted"></div>
+    </div>
+
+    <div class="card">
+      <h3>Fare Amount</h3>
+      <input id="fareInput" type="number" min="1" step="1" placeholder="Enter fare" />
+      <span class="currency">Tk</span>
+
+      <br><br>
+
+      <div class="action-row">
+        <button onclick="saveRide()">OK</button>
+        <button class="secondary" onclick="showHomeScreen()">Cancel / Back</button>
+      </div>
+
+      <div class="small-note">Input must be greater than zero. Floating values are rounded.</div>
+    </div>
+  </section>
+
+  <!-- HISTORY SCREEN -->
+  <section id="historyScreen" class="hidden">
+    <div class="card">
+      <div class="toggle-row">
+        <button id="btnToday" onclick="setHistoryMode('today')">Today</button>
+        <button id="btnWeek" onclick="setHistoryMode('week')">This Week</button>
+        <button id="btnMonth" onclick="setHistoryMode('month')">This Month</button>
+        <button id="btnLast7" onclick="setHistoryMode('last7')">Last 7 days</button>
+      </div>
+
+      <div id="monthSubToggle" class="toggle-row hidden" style="margin-top:12px;">
+        <button id="btnMonthDaily" onclick="setMonthView('daily')">Daily</button>
+        <button id="btnMonthWeekly" onclick="setMonthView('weekly')">Weekly</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="historyTitle">Total Income:</h2>
+      <div id="historyTotal" class="big-number">0 Tk</div>
+      <canvas id="historyChart"></canvas>
+      <div class="small-note">Bars = period income, Line = accumulated income</div>
+      <br>
+      <button class="secondary full" onclick="showHomeScreen()">Back to Home</button>
+    </div>
+  </section>
+</div>
+
+<script>
+const STORAGE_KEY = "rickshawala_rides_v1";
+
+let rides = loadRides();
+let historyMode = localStorage.getItem("rickshawala_last_mode") || "today";
+let monthView = localStorage.getItem("rickshawala_month_view") || "daily";
+
+function loadRides() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveRides() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(rides));
+}
+
+function formatTk(value) {
+  return Math.round(value).toLocaleString("en-US") + " Tk";
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function addDays(d, days) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function startOfWeekSaturday(date) {
+  const d = startOfDay(date);
+  const day = d.getDay();
+  const diff = (day - 6 + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+
+function showOnly(id) {
+  ["homeScreen", "addScreen", "historyScreen"].forEach(s => {
+    document.getElementById(s).classList.add("hidden");
+  });
+  document.getElementById(id).classList.remove("hidden");
+}
+
+function showHomeScreen() {
+  showOnly("homeScreen");
+  updateTodayScreen();
+}
+
+function showAddScreen() {
+  showOnly("addScreen");
+  document.getElementById("fareInput").value = "";
+  document.getElementById("fareInput").focus();
+  updateDateTime();
+}
+
+function showHistoryScreen() {
+  showOnly("historyScreen");
+  setHistoryMode(historyMode);
+}
+
+function updateDateTime() {
+  document.getElementById("currentDateTime").textContent =
+    new Date().toLocaleString();
+}
+
+function saveRide() {
+  let value = parseFloat(document.getElementById("fareInput").value);
+
+  if (isNaN(value) || value <= 0) {
+    alert("Please enter a fare amount greater than zero.");
+    return;
+  }
+
+  value = Math.round(value);
+
+  if (value > 100) {
+    const ok = confirm("Fare is greater than 100 Tk. Is this correct?");
+    if (!ok) return;
+  }
+
+  rides.push({
+    time: Date.now(),
+    fare: value
+  });
+
+  saveRides();
+  showHomeScreen();
+}
+
+function getRidesBetween(start, end) {
+  return rides.filter(r => r.time >= start.getTime() && r.time < end.getTime());
+}
+
+function updateTodayScreen() {
+  const now = new Date();
+  const start = startOfDay(now);
+  const end = addDays(start, 1);
+  const todayRides = getRidesBetween(start, end);
+
+  const labels = [];
+  const bars = [];
+
+  for (let h = 0; h < 24; h++) {
+    labels.push(String(h));
+    const hourStart = new Date(start);
+    hourStart.setHours(h, 0, 0, 0);
+    const hourEnd = new Date(start);
+    hourEnd.setHours(h + 1, 0, 0, 0);
+
+    bars.push(
+      todayRides
+        .filter(r => r.time >= hourStart.getTime() && r.time < hourEnd.getTime())
+        .reduce((s, r) => s + r.fare, 0)
+    );
+  }
+
+  const total = bars.reduce((a, b) => a + b, 0);
+  document.getElementById("todayTotal").textContent = formatTk(total);
+
+  drawIncomeChart("todayChart", labels, bars, "Hour");
+}
+
+function setHistoryMode(mode) {
+  historyMode = mode;
+  localStorage.setItem("rickshawala_last_mode", mode);
+
+  document.getElementById("btnToday").classList.toggle("active", mode === "today");
+  document.getElementById("btnWeek").classList.toggle("active", mode === "week");
+  document.getElementById("btnMonth").classList.toggle("active", mode === "month");
+  document.getElementById("btnLast7").classList.toggle("active", mode === "last7");
+
+  document.getElementById("monthSubToggle").classList.toggle("hidden", mode !== "month");
+
+  renderHistory();
+}
+
+function setMonthView(view) {
+  monthView = view;
+  localStorage.setItem("rickshawala_month_view", view);
+  renderHistory();
+}
+
+function renderHistory() {
+  document.getElementById("btnMonthDaily").classList.toggle("active", monthView === "daily");
+  document.getElementById("btnMonthWeekly").classList.toggle("active", monthView === "weekly");
+
+  let result;
+
+  if (historyMode === "today") result = buildTodayData();
+  if (historyMode === "week") result = buildThisWeekData();
+  if (historyMode === "last7") result = buildLast7DaysData();
+  if (historyMode === "month") result = buildThisMonthData();
+
+  document.getElementById("historyTitle").textContent = result.title;
+  document.getElementById("historyTotal").textContent = formatTk(result.total);
+  drawIncomeChart("historyChart", result.labels, result.bars, result.xTitle);
+}
+
+function buildTodayData() {
+  const now = new Date();
+  const start = startOfDay(now);
+  const end = addDays(start, 1);
+  const periodRides = getRidesBetween(start, end);
+
+  const labels = [];
+  const bars = [];
+
+  for (let h = 0; h < 24; h++) {
+    labels.push(String(h));
+    const s = new Date(start);
+    s.setHours(h, 0, 0, 0);
+    const e = new Date(start);
+    e.setHours(h + 1, 0, 0, 0);
+
+    bars.push(periodRides
+      .filter(r => r.time >= s.getTime() && r.time < e.getTime())
+      .reduce((sum, r) => sum + r.fare, 0));
+  }
+
+  return {
+    title: "Today's Total Income:",
+    labels,
+    bars,
+    total: bars.reduce((a,b)=>a+b,0),
+    xTitle: "Hour"
+  };
+}
+
+function buildThisWeekData() {
+  const now = new Date();
+  const start = startOfWeekSaturday(now);
+  const end = addDays(start, 7);
+  const periodRides = getRidesBetween(start, end);
+
+  const labels = ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"];
+  const bars = [];
+
+  for (let i = 0; i < 7; i++) {
+    const s = addDays(start, i);
+    const e = addDays(start, i + 1);
+    bars.push(periodRides
+      .filter(r => r.time >= s.getTime() && r.time < e.getTime())
+      .reduce((sum, r) => sum + r.fare, 0));
+  }
+
+  return {
+    title: "This Week's Total Income:",
+    labels,
+    bars,
+    total: bars.reduce((a,b)=>a+b,0),
+    xTitle: "Day"
+  };
+}
+
+function buildLast7DaysData() {
+  const today = startOfDay(new Date());
+  const start = addDays(today, -6);
+  const end = addDays(today, 1);
+  const periodRides = getRidesBetween(start, end);
+
+  const labels = [];
+  const bars = [];
+
+  for (let i = 0; i < 7; i++) {
+    const s = addDays(start, i);
+    const e = addDays(start, i + 1);
+    labels.push((s.getMonth() + 1) + "/" + s.getDate());
+
+    bars.push(periodRides
+      .filter(r => r.time >= s.getTime() && r.time < e.getTime())
+      .reduce((sum, r) => sum + r.fare, 0));
+  }
+
+  return {
+    title: "Last 7 Days Total Income:",
+    labels,
+    bars,
+    total: bars.reduce((a,b)=>a+b,0),
+    xTitle: "Day"
+  };
+}
+
+function buildThisMonthData() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const periodRides = getRidesBetween(start, end);
+
+  if (monthView === "weekly") {
+    const labels = [];
+    const bars = [];
+    let weekStart = new Date(start);
+    let idx = 1;
+
+    while (weekStart < end) {
+      const weekEnd = addDays(weekStart, 7);
+      labels.push("W" + idx);
+      bars.push(periodRides
+        .filter(r => r.time >= weekStart.getTime() && r.time < Math.min(weekEnd.getTime(), end.getTime()))
+        .reduce((sum, r) => sum + r.fare, 0));
+      weekStart = weekEnd;
+      idx++;
+    }
+
+    return {
+      title: "This Month's Total Income:",
+      labels,
+      bars,
+      total: bars.reduce((a,b)=>a+b,0),
+      xTitle: "Week"
+    };
+  }
+
+  const labels = [];
+  const bars = [];
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const s = new Date(now.getFullYear(), now.getMonth(), d);
+    const e = addDays(s, 1);
+    labels.push(String(d));
+
+    bars.push(periodRides
+      .filter(r => r.time >= s.getTime() && r.time < e.getTime())
+      .reduce((sum, r) => sum + r.fare, 0));
+  }
+
+  return {
+    title: "This Month's Total Income:",
+    labels,
+    bars,
+    total: bars.reduce((a,b)=>a+b,0),
+    xTitle: "Day"
+  };
+}
+
+function drawIncomeChart(canvasId, labels, bars, xTitle) {
+  const canvas = document.getElementById(canvasId);
+  const ctx = canvas.getContext("2d");
+
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+  ctx.clearRect(0, 0, width, height);
+
+  const padL = 48;
+  const padR = 18;
+  const padT = 22;
+  const padB = 52;
+
+  const chartW = width - padL - padR;
+  const chartH = height - padT - padB;
+
+  const cumulative = [];
+  let running = 0;
+  bars.forEach(v => {
+    running += v;
+    cumulative.push(running);
+  });
+
+  const maxVal = Math.max(10, ...bars, ...cumulative);
+  const n = bars.length;
+  const step = chartW / n;
+  const barW = Math.max(4, step * 0.55);
+
+  ctx.strokeStyle = "#d1d5db";
+  ctx.lineWidth = 1;
+  ctx.fillStyle = "#6b7280";
+  ctx.font = "12px Arial";
+
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + chartH - (i / 4) * chartH;
+    const val = Math.round((i / 4) * maxVal);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(width - padR, y);
+    ctx.stroke();
+    ctx.fillText(val, 6, y + 4);
+  }
+
+  ctx.strokeStyle = "#111827";
+  ctx.beginPath();
+  ctx.moveTo(padL, padT);
+  ctx.lineTo(padL, padT + chartH);
+  ctx.lineTo(width - padR, padT + chartH);
+  ctx.stroke();
+
+  ctx.fillStyle = "#0f766e";
+  for (let i = 0; i < n; i++) {
+    const x = padL + i * step + (step - barW) / 2;
+    const h = (bars[i] / maxVal) * chartH;
+    const y = padT + chartH - h;
+    ctx.fillRect(x, y, barW, h);
+  }
+
+  ctx.strokeStyle = "#dc2626";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+
+  for (let i = 0; i < n; i++) {
+    const x = padL + i * step + step / 2;
+    const y = padT + chartH - (cumulative[i] / maxVal) * chartH;
+
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+
+  ctx.stroke();
+
+  ctx.fillStyle = "#111827";
+  ctx.font = "11px Arial";
+
+  const labelInterval = Math.ceil(n / 8);
+
+  for (let i = 0; i < n; i++) {
+    if (i % labelInterval === 0 || i === n - 1) {
+      const x = padL + i * step + step / 2;
+      ctx.save();
+      ctx.translate(x, padT + chartH + 16);
+      ctx.rotate(-0.45);
+      ctx.fillText(labels[i], 0, 0);
+      ctx.restore();
+    }
+  }
+
+  ctx.font = "13px Arial";
+  ctx.fillStyle = "#374151";
+  ctx.fillText(xTitle, padL + chartW / 2 - 15, height - 8);
+
+  if (running === 0) {
+    ctx.fillStyle = "#9ca3af";
+    ctx.font = "16px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("No rides yet", width / 2, height / 2);
+    ctx.textAlign = "left";
+  }
+}
+
+window.addEventListener("resize", () => {
+  if (!document.getElementById("homeScreen").classList.contains("hidden")) {
+    updateTodayScreen();
+  }
+  if (!document.getElementById("historyScreen").classList.contains("hidden")) {
+    renderHistory();
+  }
+});
+
+showHomeScreen();
+</script>
+</body>
+</html>
