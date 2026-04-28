@@ -1,0 +1,6 @@
+{
+  "appId": "com.rickshawala.app",
+  "appName": "Rickshawala",
+  "webDir": ".",
+  "bundledWebRuntime": false
+}
